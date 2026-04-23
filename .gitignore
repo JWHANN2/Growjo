@@ -1,0 +1,12 @@
+.env
+
+# Container state
+influxdb/data/
+influxdb/config/
+grafana/data/
+mosquitto/data/
+mosquitto/log/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
