@@ -1,4 +1,6 @@
 .env
+.codex
+test-write-root
 
 # Container state
 influxdb/data/
