@@ -38,8 +38,86 @@ Suggested topics:
 
 - `grow/site1/room1/plant1/moisture`
 - `grow/site1/room1/environment/temp`
+- `grow/test/pi01/heartbeat`
+- `grow/test/pi01/system`
+- `grow/test/pi01/camera`
 
 The current Telegraf config subscribes broadly and uses the JSON body as the source of truth for measurement, tags, fields, and timestamp.
+
+## Raspberry Pi test telemetry
+
+Before plant sensors are installed, a Raspberry Pi can publish generic test telemetry through:
+
+`Raspberry Pi -> Mosquitto -> Telegraf -> InfluxDB bucket plant_metrics -> Grafana`
+
+Telegraf subscribes to these test topics:
+
+- `grow/test/{device_id}/heartbeat`
+- `grow/test/{device_id}/system`
+- `grow/test/{device_id}/camera`
+
+The JSON body is the source of truth for measurement name, tags, fields, and timestamp. Use UTC ISO 8601 timestamps where possible.
+
+### Publish test messages
+
+Run these examples from any machine that has `mosquitto_pub` and can reach the server. Replace `<server-ip>` with the Growjo server IP and update the timestamp if needed.
+
+Heartbeat:
+
+```sh
+mosquitto_pub -h <server-ip> -p 1883 -t grow/test/pi01/heartbeat -m '{"measurement":"pi_heartbeat","timestamp":"2026-01-20T19:40:00Z","site":"home","room":"testbench","device_id":"pi01","status":"online","value":1}'
+```
+
+System metric:
+
+```sh
+mosquitto_pub -h <server-ip> -p 1883 -t grow/test/pi01/system -m '{"measurement":"pi_system","timestamp":"2026-01-20T19:41:00Z","site":"home","room":"testbench","device_id":"pi01","metric":"cpu_temp_c","value":52.3,"unit":"C"}'
+```
+
+Camera event:
+
+```sh
+mosquitto_pub -h <server-ip> -p 1883 -t grow/test/pi01/camera -m '{"measurement":"pi_camera","timestamp":"2026-01-20T19:42:00Z","site":"home","room":"testbench","device_id":"pi01","camera_id":"cam01","event_type":"snapshot","value":1,"image_url":"http://<pi-ip>:5000/latest.jpg"}'
+```
+
+### Grafana Flux queries
+
+Use the provisioned InfluxDB datasource in Grafana and query the `plant_metrics` bucket.
+
+Heartbeat status:
+
+```flux
+from(bucket: "plant_metrics")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "pi_heartbeat")
+  |> filter(fn: (r) => r.device_id == "pi01")
+  |> filter(fn: (r) => r._field == "value")
+  |> last()
+```
+
+CPU temperature:
+
+```flux
+from(bucket: "plant_metrics")
+  |> range(start: -6h)
+  |> filter(fn: (r) => r._measurement == "pi_system")
+  |> filter(fn: (r) => r.device_id == "pi01")
+  |> filter(fn: (r) => r.metric == "cpu_temp_c")
+  |> filter(fn: (r) => r._field == "value")
+```
+
+Latest camera snapshot URL:
+
+```flux
+from(bucket: "plant_metrics")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r._measurement == "pi_camera")
+  |> filter(fn: (r) => r.device_id == "pi01")
+  |> filter(fn: (r) => r.camera_id == "cam01")
+  |> filter(fn: (r) => r.event_type == "snapshot")
+  |> filter(fn: (r) => r._field == "image_url")
+  |> last()
+```
 
 ## First-time setup
 
